@@ -1,0 +1,96 @@
+# Everything the agent is allowed to say about you. Claude answers form questions
+# ONLY from this file. If something isn't here, the job goes to the review queue
+# instead of being guessed. Keep your copy of this repo PRIVATE once you fill this in:
+# it holds your personal details.
+
+first_name: ""
+middle_name: ""
+last_name: ""
+preferred_name: ""
+email: ""
+phone: ""
+phone_device_type: Mobile
+location:
+  address_line1: ""                      # street address; Workday asks for it on some tenants
+  city: ""
+  state: ""
+  country: United States
+  zip: ""
+links:
+  linkedin: ""
+  github: ""
+  portfolio: ""
+
+resume_path: config/resume.pdf          # commit your resume here (private repo only)
+cover_letter_path: ""                    # optional PDF; textarea cover letters are written per job
+
+# Current program first.
+education:
+  school: ""
+  degree: ""                             # e.g. Bachelor's
+  major: ""
+  gpa: ""                                # leave blank to send GPA questions to the review queue
+  start: ""                              # YYYY-MM
+  graduation: ""                         # YYYY-MM
+  coursework: ""
+past_education: []
+  # - school: ""
+  #   degree: ""
+  #   major: ""
+  #   gpa: ""
+  #   start: ""
+  #   graduation: ""
+
+experience: []
+  # - title: ""
+  #   company: ""
+  #   location: ""
+  #   start: ""          # YYYY-MM
+  #   end: present
+  #   summary: >-
+  #     What you did and what came of it.
+
+projects: []
+  # - name: ""
+  #   date: ""           # YYYY-MM
+  #   tech: []
+  #   summary: >-
+  #     What it does and how you built it.
+
+skills: []
+certifications: []
+affiliations: []
+
+# Left blank on purpose: these questions go to the review queue until you answer them.
+work_authorization:
+  authorized_us: null              # true / false
+  needs_sponsorship_now: null
+  needs_sponsorship_future: null
+  us_citizen: null
+
+preferences:
+  willing_to_relocate: null
+  earliest_start: ""               # YYYY-MM-DD
+  salary_expectation: "Open / negotiable"
+  how_did_you_hear: "Online job board"
+
+# Voluntary self-identification. "Decline to self-identify" is always safe.
+eeo:
+  gender: Decline to self-identify
+  race: Decline to self-identify
+  hispanic_latino: Decline to self-identify
+  veteran: I am not a protected veteran
+  disability: I do not wish to answer
+
+# Fixed answers that win over Claude. "match" is a case-insensitive regex
+# tested against the question text.
+custom_answers:
+  - match: "previously (worked|been employed)|former employee"
+    answer: "No"
+  - match: "at least 18|over the age of 18"
+    answer: "Yes"
+
+# Free-form facts Claude may draw on for open questions ("Why us?", "Tell us about a project").
+# Write real material: projects, experience, skills, and what kind of work and teams you want.
+# Claude won't make any of it up.
+about_me: |

@@ -1,0 +1,62 @@
+# How the agent behaves. Start in dry_run: it fills every form and screenshots it,
+# but never clicks submit. Switch to "auto" once the screenshots look right.
+mode: dry_run            # dry_run | auto
+# Master lock. While false, nothing is ever submitted: not by mode: auto, the workflow's
+# mode override, or `apply --submit`. Set to true only when you want real applications.
+allow_submit: false
+
+max_applications_per_run: 5
+max_applications_per_day: 25
+max_job_age_hours: 0     # ignore postings older than this many hours; 0 = no limit
+
+sources:
+  # SimplifyJobs-format repos (they publish .github/scripts/listings.json)
+  simplify:
+    - SimplifyJobs/Summer2026-Internships   # also serves the 2027 cycle
+
+  # Any other GitHub repo whose README has a markdown table of jobs.
+  # Format: owner/repo  (README on the default branch is parsed)
+  github_markdown: []
+    # - vanshb03/Summer2027-Internships
+    # - speedyapply/2027-SWE-College-Jobs
+
+  # Companies to poll directly on their ATS (catches postings before the lists do).
+  # The value is the board slug from the careers URL, e.g. job-boards.greenhouse.io/<slug>
+  ats_boards:
+    greenhouse: []       # e.g. [stripe, airbnb, robinhood]
+    lever: []            # e.g. [palantir, plaid]
+    ashby: []            # e.g. [ramp, notion, openai]
+
+  # LinkedIn / Indeed job-alert emails read from your inbox over IMAP.
+  # Set up the alerts on those sites; the agent never logs into them.
+  # Needs IMAP_USER and IMAP_PASSWORD (a Gmail app password) as secrets.
+  email_alerts:
+    enabled: false
+    lookback_days: 2
+
+filters:
+  # A job must match at least one term from EVERY list in title_require_all (case-insensitive, whole words).
+  title_require_all:
+    - [intern, internship, interns, co-op, coop, "co op"]
+    - [software, swe, sde, developer, development engineer, backend, back end, frontend, front end,
+       full stack, fullstack, full-stack, mobile, ios, android, web, platform, infrastructure, cloud,
+       devops, site reliability, sre, machine learning engineer, ml engineer, ai engineer, programmer,
+       application engineer, applications engineer]
+  title_exclude: [senior, sr, staff, principal, lead, manager, director, phd, mba, sales, account,
+                  hardware, mechanical, electrical, civil, chemical, manufacturing, embedded firmware,
+                  analog, rf, asic, fpga, process, product manager, marketing, finance]
+  # Simplify categories; empty = all. Listings use both the short and long names.
+  categories: [Software, Software Engineering, AI/ML/Data, "Data Science, AI & Machine Learning"]
+  locations_include: []                   # substrings, e.g. [Remote, NY, New York, FL]; empty = anywhere
+  us_only: true                           # skip postings whose locations are all outside the US
+  # Matched as substrings of the company name and the job URL, e.g. [SomeCompany].
+  exclude_companies: []
+  needs_sponsorship: false                # true = skip jobs marked "Does Not Offer Sponsorship"
+  us_citizen: true                        # false = skip jobs marked "U.S. Citizenship is Required"
+
+claude:
+  model: claude-opus-5-5
+  effort: medium
+  # Required questions answered below this confidence are sent to the review queue
+  # instead of being submitted.
+  min_confidence: 0.8

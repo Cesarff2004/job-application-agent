@@ -1,0 +1,921 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Callback</title>
+<meta name="theme-color" content="#F2F3EF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101412" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Callback">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one phone column; sticky title bar, scrolling list, bottom tab bar. Detail opens as a bottom sheet. */
+:root {
+  --bg: #F2F3EF; --surface: #FFFFFF; --sunk: #E7E9E3; --ink: #141A17; --muted: #5B6761; --line: #D8DCD5;
+  --accent: #2B47C9; --accent-ink: #FFFFFF;
+  --s-applied: #2B47C9; --s-oa: #7445C2; --s-interview: #A86A0C; --s-offer: #23804F;
+  --s-rejected: #A3423F; --s-ghosted: #6E7671; --s-todo: #B4540F;
+  --font-display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r: 10px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #101412; --surface: #181E1B; --sunk: #0B0E0D; --ink: #E5EBE7; --muted: #92A099; --line: #29312D;
+  --accent: #8197FF; --accent-ink: #0B0E0D;
+  --s-applied: #8197FF; --s-oa: #B595F0; --s-interview: #E3A84A; --s-offer: #5CC98E;
+  --s-rejected: #E07D79; --s-ghosted: #8C958F; --s-todo: #EE9550;
+  color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #101412; --surface: #181E1B; --sunk: #0B0E0D; --ink: #E5EBE7; --muted: #92A099; --line: #29312D;
+  --accent: #8197FF; --accent-ink: #0B0E0D;
+  --s-applied: #8197FF; --s-oa: #B595F0; --s-interview: #E3A84A; --s-offer: #5CC98E;
+  --s-rejected: #E07D79; --s-ghosted: #8C958F; --s-todo: #EE9550;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.45 var(--font-body); -webkit-font-smoothing: antialiased;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+a { color: var(--accent); }
+.mono { font-family: var(--font-mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* Top bar */
+.top {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg);
+  display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px;
+}
+.top h1 { font: 800 22px/1 var(--font-display); letter-spacing: -0.02em; margin: 0; flex: 1; }
+.top h1 small { display: block; font: 400 12px/1.4 var(--font-mono); color: var(--muted); letter-spacing: 0; margin-top: 4px; }
+.icon-btn {
+  width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface);
+  display: grid; place-items: center; flex: none;
+}
+.icon-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+.icon-btn.spin svg { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+main { padding: 0 16px calc(96px + env(safe-area-inset-bottom, 0px)); max-width: 640px; margin: 0 auto; }
+
+/* Search + filter chips */
+.search {
+  width: 100%; padding: 10px 12px; border-radius: var(--r); border: 1px solid var(--line);
+  background: var(--surface); margin-bottom: 10px;
+}
+.chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--line); background: transparent;
+  font-size: 13px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center;
+}
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chip .n { font-family: var(--font-mono); font-size: 11px; opacity: 0.8; }
+
+/* Job rows */
+.list { display: flex; flex-direction: column; gap: 8px; }
+.row {
+  display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: start; text-align: left;
+  width: 100%; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+}
+.row .co { font: 700 15px/1.25 var(--font-display); min-width: 0; overflow-wrap: anywhere; }
+.row .ti { grid-column: 1 / -1; color: var(--muted); font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
+.row .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; color: var(--muted); }
+.row .why { grid-column: 1 / -1; font-size: 13px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 6px; margin-top: 2px; overflow-wrap: anywhere; }
+.row .actions { grid-column: 1 / -1; display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+
+.pill {
+  --c: var(--muted);
+  display: inline-flex; align-items: center; gap: 6px; font: 500 12px/1 var(--font-body);
+  padding: 5px 9px 5px 8px; border-radius: 999px; color: var(--c);
+  background: color-mix(in srgb, var(--c) 12%, transparent); white-space: nowrap;
+}
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+.st-applied { --c: var(--s-applied); } .st-oa { --c: var(--s-oa); } .st-interview { --c: var(--s-interview); }
+.st-offer { --c: var(--s-offer); } .st-rejected { --c: var(--s-rejected); } .st-ghosted, .st-withdrawn, .st-skipped { --c: var(--s-ghosted); }
+.st-todo { --c: var(--s-todo); }
+
+.btn {
+  padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface);
+  font-size: 13px; font-weight: 500; text-decoration: none; color: var(--ink); display: inline-flex; align-items: center; gap: 6px;
+}
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.ghost { background: transparent; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+
+.empty { text-align: center; padding: 40px 20px; color: var(--muted); }
+.empty h2 { font: 700 18px var(--font-display); color: var(--ink); margin: 0 0 6px; text-wrap: balance; }
+.more { margin: 12px auto 0; display: block; }
+
+/* Stats */
+.section-h { font: 700 12px/1 var(--font-body); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 22px 0 10px; }
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; }
+.tile b { display: block; font: 800 28px/1.1 var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.tile span { font-size: 13px; color: var(--muted); }
+.funnel { display: flex; flex-direction: column; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; }
+.fbar { display: grid; grid-template-columns: 84px 1fr 48px; gap: 10px; align-items: center; font-size: 13px; }
+.fbar .track { height: 10px; background: var(--sunk); border-radius: 5px; overflow: hidden; }
+.fbar .fill { height: 100%; background: var(--c); border-radius: 5px; }
+.fbar .v { text-align: right; }
+.week { display: flex; align-items: flex-end; gap: 4px; height: 90px; padding: 14px 14px 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r) var(--r) 0 0; }
+.week .d { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+.week .d i { display: block; background: var(--accent); border-radius: 3px 3px 0 0; min-height: 2px; }
+.week .d i.zero { background: var(--line); }
+.week-l { display: flex; gap: 4px; padding: 6px 14px 10px; background: var(--surface); border: 1px solid var(--line); border-top: 0; border-radius: 0 0 var(--r) var(--r); color: var(--muted); }
+.week-l span { flex: 1; text-align: center; }
+.agent { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.agent-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.agent-row > div { min-width: 0; }
+.switch { position: relative; width: 48px; height: 28px; flex: none; }
+.switch input { opacity: 0; width: 100%; height: 100%; margin: 0; position: absolute; cursor: pointer; }
+.switch span { position: absolute; inset: 0; border-radius: 14px; background: var(--line); transition: background .2s; pointer-events: none; }
+.switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--surface); transition: transform .2s; box-shadow: 0 1px 2px rgb(0 0 0 / .25); }
+.switch input:checked + span { background: var(--s-offer); }
+.switch input:checked + span::after { transform: translateX(20px); }
+
+/* Tab bar */
+.tabs {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: grid; grid-template-columns: repeat(3, 1fr);
+  background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.tabs button {
+  border: 0; background: none; padding: 10px 4px 12px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  font-size: 12px; color: var(--muted); position: relative;
+}
+.tabs button svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+.tabs button[aria-selected="true"] { color: var(--ink); font-weight: 600; }
+.tabs .badge {
+  position: absolute; top: 6px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--s-todo); color: var(--surface); font: 600 11px/18px var(--font-mono); text-align: center;
+}
+.fab {
+  position: fixed; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 6;
+  height: 48px; padding: 0 18px; border-radius: 24px; border: 0; background: var(--accent); color: var(--accent-ink);
+  font-weight: 600; box-shadow: 0 6px 18px rgb(0 0 0 / .18); display: inline-flex; align-items: center; gap: 6px;
+}
+
+/* Bottom sheet */
+.scrim { position: fixed; inset: 0; background: rgb(0 0 0 / .35); z-index: 10; }
+.sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 11; max-height: 88%; overflow-y: auto;
+  background: var(--surface); border-radius: 16px 16px 0 0; padding: 8px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+  max-width: 640px; margin: 0 auto; animation: up .22s ease-out;
+}
+@keyframes up { from { transform: translateY(24px); opacity: .6; } }
+.grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 4px auto 12px; }
+.sheet h2 { font: 800 22px/1.15 var(--font-display); letter-spacing: -0.01em; margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
+.sheet .sub { color: var(--muted); margin: 4px 0 12px; overflow-wrap: anywhere; }
+.stages { display: flex; flex-wrap: wrap; gap: 6px; }
+.stages button { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 7px 12px; font-size: 13px; }
+.stages button[aria-pressed="true"] { background: var(--c); border-color: var(--c); color: var(--surface); font-weight: 600; }
+.field { display: flex; flex-direction: column; gap: 5px; margin-top: 12px; }
+.field label { font-size: 13px; font-weight: 600; }
+.field input, .field textarea { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); }
+.field textarea { min-height: 84px; resize: vertical; }
+.field .hint { font-size: 12px; color: var(--muted); }
+.kv { display: grid; grid-template-columns: 96px 1fr; gap: 6px 10px; font-size: 13px; margin-top: 14px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.timeline { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.timeline li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.timeline li .sub { flex-basis: 100%; margin: 0 0 4px; font-size: 13px; }
+details.answers { margin-top: 14px; border: 1px solid var(--line); border-radius: 8px; }
+details.answers summary { padding: 10px 12px; font-weight: 600; font-size: 13px; cursor: pointer; }
+details.answers ol { margin: 0; padding: 0 12px 12px 30px; font-size: 13px; display: flex; flex-direction: column; gap: 8px; }
+details.answers .q { color: var(--muted); }
+.sheet-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(140px + env(safe-area-inset-bottom, 0px)); z-index: 20;
+  background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 14px; max-width: calc(100% - 32px);
+}
+.banner { background: color-mix(in srgb, var(--s-rejected) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--s-rejected) 40%, var(--line)); border-radius: var(--r); padding: 10px 12px; margin-bottom: 10px; font-size: 14px; }
+.demo { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+
+.hint-line { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
+.chip.needs { color: var(--s-todo); border-color: color-mix(in srgb, var(--s-todo) 45%, var(--line)); }
+.chip.needs[aria-pressed="true"] { background: var(--s-todo); border-color: var(--s-todo); color: var(--surface); }
+
+/* Profile */
+.me { display: flex; gap: 14px; align-items: center; padding-top: 6px; }
+.me-text { min-width: 0; }
+.me h2 { font: 800 24px/1.1 var(--font-display); letter-spacing: -0.02em; margin: 0; }
+.me .sub { color: var(--muted); margin: 4px 0 10px; font-size: 14px; }
+.avatar { width: 72px; height: 72px; border-radius: 50%; flex: none; object-fit: cover; border: 1px solid var(--line); }
+.avatar.initials { display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); font: 800 26px var(--font-display); }
+.me-links { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: 14px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; }
+.card.kv { margin-top: 0; }
+.stack { display: flex; flex-direction: column; gap: 14px; }
+.stack .sub { color: var(--muted); font-size: 13px; margin-top: 2px; overflow-wrap: anywhere; }
+.stack .body { margin: 6px 0 0; font-size: 14px; max-width: 65ch; }
+.stack b { font-family: var(--font-display); font-weight: 700; }
+.gaps { background: color-mix(in srgb, var(--s-todo) 9%, var(--surface)); border: 1px solid color-mix(in srgb, var(--s-todo) 35%, var(--line)); border-radius: var(--r); padding: 12px 14px; font-size: 14px; }
+.gaps p { margin: 0 0 6px; color: var(--muted); }
+.gaps ul { margin: 0; padding-left: 18px; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { padding: 5px 10px; border-radius: 6px; background: var(--sunk); font-size: 13px; }
+.acct { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.acct > div { min-width: 0; }
+code { font-family: var(--font-mono); font-size: 12.5px; background: var(--sunk); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+details.adv { margin-top: 12px; }
+details.adv summary { font-size: 13px; color: var(--muted); cursor: pointer; }
+
+/* Setup */
+.setup { padding-top: 12px; }
+.setup h2 { font: 800 26px/1.1 var(--font-display); letter-spacing: -0.02em; margin: 8px 0; text-wrap: balance; }
+.setup p, .setup ol { color: var(--muted); max-width: 60ch; }
+.setup ol { padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.setup code { font-family: var(--font-mono); font-size: 12.5px; background: var(--sunk); padding: 1px 5px; border-radius: 4px; }
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Callback <small id="sync">not connected</small></h1>
+  <button class="icon-btn" id="refresh" aria-label="Refresh"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg></button>
+  <button class="icon-btn" id="settingsBtn" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+</header>
+
+<main id="main"></main>
+
+<button class="fab" id="fab" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>Add</button>
+
+<nav class="tabs" role="tablist" id="tabs">
+  <button role="tab" data-tab="apps" aria-selected="true"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>Applications<span class="badge" id="todoBadge" hidden></span></button>
+  <button role="tab" data-tab="stats" aria-selected="false"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Progress</button>
+  <button role="tab" data-tab="profile" aria-selected="false"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Profile</button>
+</nav>
+
+<div id="layer"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+<script>
+"use strict";
+// ---------- Config ----------
+const STAGES = [
+  { id: "applied", label: "Applied" },
+  { id: "oa", label: "Assessment" },
+  { id: "interview", label: "Interview" },
+  { id: "offer", label: "Offer" },
+  { id: "rejected", label: "Rejected" },
+  { id: "ghosted", label: "No response" },
+  { id: "withdrawn", label: "Withdrawn" },
+];
+const STAGE_LABEL = Object.fromEntries(STAGES.map(s => [s.id, s.label]));
+const TODO_STATUSES = new Set(["needs_review", "manual", "failed"]);
+const PAGE = 40;
+
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem("cb." + k)); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem("cb." + k, JSON.stringify(v)); } catch {} },
+  del(k) { try { localStorage.removeItem("cb." + k); } catch {} },
+};
+
+let cfg = store.get("cfg");            // { repo: "owner/name", token, branch }
+let jobs = {};                         // state/jobs.json  (written by the agent)
+let tracking = {}, trackingSha = null; // state/tracking.json (written by this app)
+let inbox = {};                        // state/inbox.json   (stages the agent read from employer emails)
+let control = {}, controlSha = null;   // state/control.json
+let profile = null, accounts = {}, ghUser = null; // config/profile.yaml, state/accounts.json, public GitHub profile
+let lastRun = null;
+let demo = false;
+let tab = ["apps", "stats", "profile"].includes(store.get("tab")) ? store.get("tab") : "apps";
+let filter = { apps: "active" };
+let query = "";
+let shown = PAGE;
+
+// ---------- GitHub API ----------
+async function gh(path, opts = {}) {
+  const res = await fetch(`https://api.github.com/repos/${cfg.repo}${path ? "/" + path : ""}`, {
+    ...opts,
+    headers: {
+      Authorization: `Bearer ${cfg.token}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+      Accept: opts.raw ? "application/vnd.github.raw+json" : "application/vnd.github+json",
+      ...(opts.body ? { "Content-Type": "application/json" } : {}),
+    },
+    cache: "no-store",
+  });
+  if (res.status === 404 && opts.allow404) return null;
+  if (!res.ok) {
+    const err = new Error(`${res.status} ${(await res.json().catch(() => ({}))).message || res.statusText}`);
+    err.status = res.status;
+    throw err;
+  }
+  if (res.status === 204) return true;
+  return opts.raw ? res.text() : res.json();
+}
+const branch = () => cfg.branch || "main";
+const b64 = s => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
+const unb64 = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\n/g, "")), c => c.charCodeAt(0)));
+
+async function readJsonFile(path) {
+  const meta = await gh(`contents/${path}?ref=${branch()}`, { allow404: true });
+  if (!meta) return { data: {}, sha: null };
+  // Files over 1 MB come back without inline content.
+  const text = meta.content ? unb64(meta.content) : await gh(`contents/${path}?ref=${branch()}`, { raw: true });
+  return { data: JSON.parse(text || "{}"), sha: meta.sha };
+}
+
+// Read-modify-write with one retry when the file changed underneath us.
+async function updateJsonFile(path, mutate, message) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { data, sha } = await readJsonFile(path);
+    const next = mutate(data);
+    try {
+      const res = await gh(`contents/${path}`, {
+        method: "PUT",
+        body: JSON.stringify({ message, branch: branch(), sha: sha || undefined,
+                               content: b64(JSON.stringify(next, null, 1) + "\n") }),
+      });
+      return { data: next, sha: res.content.sha };
+    } catch (e) {
+      if (attempt === 0 && (e.status === 409 || e.status === 422)) continue;
+      throw e;
+    }
+  }
+}
+
+// ---------- Data ----------
+async function load() {
+  if (demo) { render(); return; }
+  if (!cfg) { render(); return; }
+  setSync("syncing…", true);
+  try {
+    // Check the key can see the repo first. The file reads below treat 404 as "not created yet",
+    // which would otherwise hide a key without access behind an empty, "Running" app.
+    await gh("");
+    const [j, t, c, i, a, p] = await Promise.all([
+      readJsonFile("state/jobs.json"), readJsonFile("state/tracking.json"), readJsonFile("state/control.json"),
+      readJsonFile("state/inbox.json"), readJsonFile("state/accounts.json"),
+      gh(`contents/config/profile.yaml?ref=${branch()}`, { raw: true, allow404: true }),
+    ]);
+    announceNew(j.data);
+    jobs = j.data; tracking = t.data; trackingSha = t.sha; control = c.data; controlSha = c.sha;
+    inbox = i.data.updates || {};
+    accounts = a.data;
+    try { profile = p && window.jsyaml ? jsyaml.load(p) : null; } catch { profile = null; }
+    store.set("cache", { jobs, tracking, control, inbox, accounts, profile, at: Date.now() });
+    if (!ghUser) fetch(`https://api.github.com/users/${cfg.repo.split("/")[0]}`).then(r => r.ok ? r.json() : null)
+      .then(u => { ghUser = u; if (tab === "profile") render(); }).catch(() => {});
+    gh("actions/workflows/apply.yml/runs?per_page=1").then(r => { lastRun = r.workflow_runs[0] || null; if (tab === "stats") render(); }).catch(() => {});
+    setSync(`synced ${ago(Date.now() / 1000)}`);
+    error = null;
+  } catch (e) {
+    error = e.status === 401 ? "GitHub rejected the key. It may be expired or mistyped. Paste it again in Settings (gear icon)." :
+            e.status === 404 ? `This key can't see ${cfg.repo}. On GitHub, edit the token: Repository access → Only select repositories → ${cfg.repo.split("/")[1]}.` :
+            e.status === 403 ? `This key can read ${cfg.repo} but not save to it. On GitHub, edit the token: Permissions → Contents → Read and write.` :
+            `Couldn't reach GitHub (${e.message}). Showing the last synced copy.`;
+    setSync("offline");
+  }
+  render();
+}
+let error = null;
+
+// A toast when the agent submitted something since the last sync (the app refreshes every 2 minutes).
+function announceNew(next) {
+  if (!Object.keys(jobs).length) return; // first load: nothing to compare with
+  const fresh = Object.entries(next).filter(([k, j]) => j.status === "submitted" && (jobs[k] || {}).status !== "submitted");
+  if (fresh.length === 1) toast(`Agent applied: ${fresh[0][1].company}`);
+  else if (fresh.length > 1) toast(`Agent sent ${fresh.length} new applications`);
+}
+setInterval(() => { if (!document.hidden && cfg && !demo && !layer.innerHTML) load(); }, 120000);
+
+function setSync(text, busy) {
+  document.getElementById("sync").textContent = demo ? "example data" : text;
+  document.getElementById("refresh").classList.toggle("spin", !!busy);
+}
+
+// Your stage changes and the ones the agent read from email form one history; the latest wins.
+function mergeStage(key, t, appliedAt) {
+  const mail = (inbox[key] || {}).events || [];
+  if (!mail.length) return { stage: t.stage || (appliedAt ? "applied" : null), events: t.events || [] };
+  const seed = !t.events && appliedAt ? [{ stage: "applied", at: appliedAt }] : [];
+  const events = [...seed, ...(t.events || []), ...mail].sort((a, b) => a.at - b.at);
+  return { stage: events[events.length - 1].stage, events };
+}
+
+// Every application as one record: agent entries merged with tracker entries.
+function records() {
+  const out = [];
+  for (const [key, j] of Object.entries(jobs)) {
+    const t = tracking[key] || {};
+    const { stage, events } = mergeStage(key, t, j.status === "submitted" ? j.at : null);
+    out.push({ key, ...j, stage, notes: t.notes || "", events, dismissed: !!t.dismissed,
+               appliedBy: t.stage && j.status !== "submitted" ? "you" : (j.status === "submitted" ? "agent" : null) });
+  }
+  for (const [key, t] of Object.entries(tracking)) {
+    if (jobs[key] || !t.company) continue; // manual additions carry their own details
+    const { stage, events } = mergeStage(key, t, null);
+    out.push({ key, company: t.company, title: t.title, url: t.url, source: "added by you", status: "manual_add",
+               at: t.added, stage, notes: t.notes || "", events, appliedBy: "you" });
+  }
+  return out.sort((a, b) => (lastEventAt(b)) - (lastEventAt(a)));
+}
+const lastEventAt = r => Math.max(r.at || 0, ...(r.events || []).map(e => e.at));
+
+async function setTracking(key, patch, message, rec) {
+  const apply = data => {
+    const cur = data[key] || {};
+    const next = { ...cur, ...patch };
+    if (patch.stage && patch.stage !== cur.stage) {
+      // Agent submissions start life as "applied" without a tracking entry; keep that in the history.
+      const seed = !cur.events && rec && rec.status === "submitted" ? [{ stage: "applied", at: rec.at }] : [];
+      next.events = [...(cur.events || seed), { stage: patch.stage, at: Date.now() / 1000 }];
+    }
+    if (rec && !jobs[key]) Object.assign(next, { company: rec.company, title: rec.title, url: rec.url, added: rec.at });
+    data[key] = next;
+    return data;
+  };
+  tracking = apply({ ...tracking }); // optimistic
+  render();
+  if (demo) return;
+  try {
+    const res = await updateJsonFile("state/tracking.json", apply, message);
+    tracking = res.data; trackingSha = res.sha;
+    store.set("cache", { jobs, tracking, control, inbox, accounts, profile, at: Date.now() });
+  } catch (e) {
+    toast(`Not saved: ${e.message}`);
+    await load();
+  }
+}
+
+// ---------- Helpers ----------
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function ago(ts) {
+  if (!ts) return "";
+  const s = Date.now() / 1000 - ts;
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  if (s < 86400 * 30) return `${Math.floor(s / 86400)}d ago`;
+  return new Date(ts * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+function atsOf(url = "") {
+  const m = [["greenhouse", /greenhouse\.io|gh_jid=/], ["lever", /lever\.co/], ["ashby", /ashbyhq\.com/], ["workday", /myworkday/],
+    ["icims", /icims/], ["oracle", /oraclecloud/], ["smartrecruiters", /smartrecruiters/], ["linkedin", /linkedin\.com/], ["indeed", /indeed\.com/],
+    ["successfactors", /successfactors|jobs2web/]].find(([, re]) => re.test(url));
+  return m ? m[0] : "company site";
+}
+function todoReason(r) {
+  if (r.status === "failed") return { tag: "Check status", text: r.detail };
+  if (r.status === "needs_review") return { tag: "Needs your answer", text: r.detail };
+  return { tag: atsOf(r.url), text: "" };
+}
+let toastTimer;
+function toast(msg) {
+  document.querySelectorAll(".toast").forEach(t => t.remove());
+  const t = document.createElement("div");
+  t.className = "toast"; t.textContent = msg; t.setAttribute("role", "status");
+  document.body.append(t);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.remove(), 2600);
+}
+const pill = (stage, label) => `<span class="pill st-${esc(stage)}">${esc(label || STAGE_LABEL[stage] || stage)}</span>`;
+const match = r => !query || `${r.company} ${r.title}`.toLowerCase().includes(query);
+
+// ---------- Views ----------
+const main = document.getElementById("main");
+
+function render() {
+  document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
+  const all = records();
+  const todo = all.filter(r => TODO_STATUSES.has(r.status) && !r.stage && !r.dismissed);
+  const badge = document.getElementById("todoBadge");
+  badge.hidden = !todo.length; badge.textContent = todo.length > 99 ? "99+" : todo.length;
+  document.getElementById("fab").hidden = tab !== "apps" || (!cfg && !demo);
+
+  if (!cfg && !demo) { main.innerHTML = setupView(); bindSetup(); return; }
+  const banner = (error ? `<div class="banner" role="alert">${esc(error)}</div>` : "") +
+    (demo ? `<div class="banner demo">You're looking at example data. <button class="btn ghost" id="exitDemo">Connect your repo</button></div>` : "");
+  if (tab === "apps") main.innerHTML = banner + appsView(all, todo);
+  else if (tab === "stats") main.innerHTML = banner + statsView(all);
+  else main.innerHTML = banner + profileView();
+  bindMain();
+}
+
+function todoRow(r) {
+  const why = todoReason(r);
+  return `<div class="row" data-open="${esc(r.key)}" role="button" tabindex="0">
+    <span class="co">${esc(r.company)}</span>${pill("todo", why.tag)}
+    <span class="ti">${esc(r.title)}</span>
+    <span class="meta mono">${esc(ago(r.at))} · ${esc(r.source || "")}</span>
+    ${why.text ? `<span class="why">${esc(why.text)}</span>` : ""}
+    <div class="actions">
+      <a class="btn primary" href="${esc(r.url)}" target="_blank" rel="noopener" data-stop>Open posting ↗</a>
+      <button class="btn" data-applied="${esc(r.key)}">I applied</button>
+      <button class="btn ghost" data-dismiss="${esc(r.key)}">Not for me</button>
+    </div>
+  </div>`;
+}
+
+function appsView(all, todo) {
+  if (filter.apps === "needs" && !todo.length) filter.apps = "active";
+  const apps = all.filter(r => r.stage);
+  const active = s => ["applied", "oa", "interview", "offer"].includes(s);
+  const groups = { needs: todo, active: apps.filter(r => active(r.stage)), all: apps };
+  for (const s of STAGES) groups[s.id] = apps.filter(r => r.stage === s.id);
+  // "Needs you" holds jobs the agent found but couldn't submit; it only shows while something is waiting.
+  const chips = [["needs", "Needs you"], ["active", "Active"], ["all", "All"], ...STAGES.map(s => [s.id, s.label])]
+    .filter(([id]) => ["active", "all"].includes(id) || groups[id].length)
+    .map(([id, l]) => `<button class="chip${id === "needs" ? " needs" : ""}" data-filter="${id}" aria-pressed="${filter.apps === id}">${l} <span class="n">${groups[id].length}</span></button>`).join("");
+  if (!apps.length && !todo.length) return `<div class="empty"><h2>No applications yet</h2>Everything the agent submits lands here as it goes out. Tap <b>Add</b> to log one you sent yourself.</div>`;
+  const needs = filter.apps === "needs";
+  const list = (groups[filter.apps] || []).filter(match);
+  const hint = needs ? `<p class="hint-line">The agent found these but couldn't submit them. Apply yourself, then tap <b>I applied</b>.</p>` : "";
+  return searchBar() + `<div class="chips">${chips}</div>` + hint +
+    `<div class="list">${list.slice(0, shown).map(needs ? todoRow : appRow).join("") || `<div class="empty">No matches.</div>`}</div>` +
+    (list.length > shown ? `<button class="btn more" data-more>Show ${Math.min(PAGE, list.length - shown)} more of ${list.length - shown}</button>` : "");
+}
+
+function appRow(r) {
+  const last = r.events.length ? r.events[r.events.length - 1].at : r.at;
+  return `<button class="row" data-open="${esc(r.key)}">
+    <span class="co">${esc(r.company)}</span>${pill(r.stage)}
+    <span class="ti">${esc(r.title)}</span>
+    <span class="meta mono">${r.appliedBy === "agent" ? "by agent" : "by you"} · ${esc(atsOf(r.url))} · ${esc(ago(last))}</span>
+    ${r.notes ? `<span class="why">${esc(r.notes.slice(0, 120))}</span>` : ""}
+  </button>`;
+}
+
+function statsView(all) {
+  const apps = all.filter(r => r.stage);
+  const reached = s => apps.filter(r => r.stage === s || r.events.some(e => e.stage === s)).length;
+  const n = apps.length;
+  const oa = reached("oa"), iv = reached("interview"), offer = reached("offer"), rej = reached("rejected");
+  const responded = apps.filter(r => r.stage !== "applied" && r.stage !== "ghosted").length;
+  const byAgent = apps.filter(r => r.appliedBy === "agent").length;
+  const now = Date.now() / 1000;
+  const appliedAt = r => r.status === "submitted" ? r.at : ((r.events.find(e => e.stage === "applied") || {}).at || r.at);
+  const days = [...Array(14)].map((_, i) => {
+    const start = new Date(); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - (13 - i));
+    const s = start.getTime() / 1000;
+    return { d: start, n: apps.filter(r => { const t = appliedAt(r); return t >= s && t < s + 86400; }).length };
+  });
+  const max = Math.max(1, ...days.map(d => d.n));
+  const thisWeek = apps.filter(r => appliedAt(r) > now - 7 * 86400).length;
+  const funnel = [["applied", "Applied", n], ["oa", "Assessment", oa], ["interview", "Interview", iv], ["offer", "Offer", offer]];
+  const statuses = Object.values(jobs).reduce((m, j) => (m[j.status] = (m[j.status] || 0) + 1, m), {});
+  const lastAgent = Math.max(0, ...Object.values(jobs).map(j => j.at || 0));
+  const run = lastRun ? `${lastRun.status === "completed" ? (lastRun.conclusion === "success" ? "Last run OK" : `Last run ${lastRun.conclusion}`) : "Running now"} · ${ago(Date.parse(lastRun.updated_at) / 1000)}` : "";
+
+  return `
+    <h2 class="section-h">Overview</h2>
+    <div class="tiles">
+      <div class="tile"><b>${n}</b><span>applications · ${byAgent} by the agent</span></div>
+      <div class="tile"><b>${thisWeek}</b><span>sent in the last 7 days</span></div>
+      <div class="tile"><b>${n ? Math.round(responded / n * 100) : 0}%</b><span>heard back</span></div>
+      <div class="tile"><b>${iv}</b><span>reached interview${offer ? ` · ${offer} offer${offer > 1 ? "s" : ""}` : ""}</span></div>
+    </div>
+
+    <h2 class="section-h">Pipeline</h2>
+    <div class="funnel">${funnel.map(([id, l, v]) => `
+      <div class="fbar st-${id}"><span>${l}</span><div class="track"><div class="fill" style="width:${n ? v / n * 100 : 0}%;background:var(--c)"></div></div><span class="v mono">${v}</span></div>`).join("")}
+      <div class="fbar st-rejected"><span>Rejected</span><div class="track"><div class="fill" style="width:${n ? rej / n * 100 : 0}%;background:var(--c)"></div></div><span class="v mono">${rej}</span></div>
+    </div>
+
+    <h2 class="section-h">Applications per day, last 14 days</h2>
+    <div class="week" aria-label="Applications per day">${days.map(d => `<div class="d" title="${d.d.toDateString()}: ${d.n}"><i class="${d.n ? "" : "zero"}" style="height:${d.n / max * 100}%"></i></div>`).join("")}</div>
+    <div class="week-l mono">${days.map((d, i) => `<span>${i % 2 === 1 ? "" : d.d.toLocaleDateString(undefined, { weekday: "narrow" })}</span>`).join("")}</div>
+
+    <h2 class="section-h">Agent</h2>
+    <div class="agent">
+      <div class="agent-row">
+        <div><b>${control.paused ? "Paused" : "Running"}</b><div class="mono" style="color:var(--muted)">${esc(run || (lastAgent ? `last activity ${ago(lastAgent)}` : "no runs yet"))}</div></div>
+        <label class="switch" aria-label="Agent on"><input type="checkbox" id="agentOn" ${control.paused ? "" : "checked"}><span></span></label>
+      </div>
+      <div class="agent-row">
+        <span class="mono" style="color:var(--muted)">${["submitted", "dry_run", "needs_review", "manual", "failed"].filter(s => statuses[s]).map(s => `${s.replace("_", " ")} ${statuses[s]}`).join(" · ") || "no jobs handled yet"}</span>
+      </div>
+      <button class="btn" id="runNow">Check for new jobs now</button>
+    </div>`;
+}
+
+function searchBar() {
+  return `<input class="search" id="search" type="search" placeholder="Search company or role" value="${esc(query)}" aria-label="Search">`;
+}
+
+const DEFAULT_REPO = "";  // e.g. "your-username/your-private-repo"
+
+// One-time setup per device: the key stays in this browser, so there is no sign-in after this.
+function setupView() {
+  return `<div class="setup">
+    <h2>${cfg ? "Connection" : "One-time setup"}</h2>
+    <p>Paste a GitHub key once and this device stays connected. Callback reads your agent's results from your private repo and saves your updates there.</p>
+    <ol>
+      <li>Open <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com → new fine-grained token</a>.</li>
+      <li>Repository access: <b>Only select repositories</b> → <code>${esc((cfg?.repo || DEFAULT_REPO).split("/")[1] || "your private repo")}</code>.</li>
+      <li>Permissions: <b>Contents</b> and <b>Actions</b>, both <b>Read and write</b>. Set expiration as long as you like.</li>
+    </ol>
+    <form id="setupForm">
+      <div class="field"><label for="token">GitHub key</label><input id="token" required type="password" placeholder="github_pat_…" value="${esc(cfg?.token || "")}" autocomplete="off"><span class="hint">Saved only on this device.</span></div>
+      <details class="adv"${cfg?.repo || DEFAULT_REPO ? "" : " open"}><summary>Repository and branch</summary>
+        <div class="field"><label for="repo">Repository</label><input id="repo" required value="${esc(cfg?.repo || DEFAULT_REPO)}" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+        <div class="field"><label for="branch">Branch</label><input id="branch" value="${esc(cfg?.branch || "main")}" autocapitalize="off"></div>
+      </details>
+      <div class="sheet-actions"><button class="btn primary" type="submit">${cfg ? "Save" : "Connect"}</button>${cfg ? "" : `<button class="btn ghost" type="button" id="tryDemo">See it with example data</button>`}</div>
+    </form>
+  </div>`;
+}
+
+// ---------- Profile ----------
+const fmtMonth = ym => {
+  if (!ym || ym === "present") return ym === "present" ? "Present" : "";
+  const [y, m] = String(ym).split("-");
+  return m ? new Date(+y, +m - 1).toLocaleDateString(undefined, { month: "short", year: "numeric" }) : y;
+};
+const span = (a, b) => [fmtMonth(a), fmtMonth(b)].filter(Boolean).join(" – ");
+const linkOut = (url, label) => url ? `<a href="${esc(/^https?:/.test(url) ? url : "https://" + url)}" target="_blank" rel="noopener">${esc(label)} ↗</a>` : "";
+
+// Facts the agent needs but the profile leaves empty: those questions go to "Needs you".
+function profileGaps(p) {
+  const gaps = [];
+  const wa = p.work_authorization || {};
+  if (wa.authorized_us == null) gaps.push("Authorized to work in the US");
+  if (wa.needs_sponsorship_now == null || wa.needs_sponsorship_future == null) gaps.push("Visa sponsorship, now or later");
+  if (wa.us_citizen == null) gaps.push("U.S. citizenship");
+  if (!(p.education || {}).gpa) gaps.push("GPA");
+  if (!p.location?.address_line1) gaps.push("Street address (some Workday forms)");
+  return gaps;
+}
+
+function profileView() {
+  if (demo) return `<div class="empty"><h2>Your profile shows here</h2>Once connected, this tab reads your resume details from <code>config/profile.yaml</code>.</div>`;
+  const p = profile;
+  if (!p) return `<div class="empty"><h2>No profile found</h2>Callback reads <code>config/profile.yaml</code> from your repo. Push it, then tap refresh.</div>`;
+  const ed = p.education || {}, links = p.links || {}, loc = p.location || {};
+  const gaps = profileGaps(p);
+  const accts = Object.entries(accounts || {}).sort((a, b) => (b[1].last_used || 0) - (a[1].last_used || 0));
+  const avatar = ghUser?.avatar_url ? `<img class="avatar" src="${esc(ghUser.avatar_url)}&s=160" alt="">` :
+    `<div class="avatar initials">${esc((p.first_name || "?")[0])}${esc((p.last_name || "")[0] || "")}</div>`;
+  return `
+    <section class="me">
+      ${avatar}
+      <div class="me-text">
+        <h2>${esc(p.preferred_name || p.first_name)} ${esc(p.last_name)}</h2>
+        <div class="sub">${esc(ed.degree)} in ${esc(ed.major)} · ${esc(ed.school)}${ed.graduation ? ` · ${esc(fmtMonth(ed.graduation))}` : ""}</div>
+        <div class="me-links">${linkOut(links.github, "GitHub")}${linkOut(links.linkedin, "LinkedIn")}${linkOut(links.portfolio, "Portfolio")}
+          <button class="btn" id="openResume">Resume (PDF)</button></div>
+      </div>
+    </section>
+
+    ${gaps.length ? `<h2 class="section-h">Missing from your profile</h2>
+    <div class="gaps"><p>Questions about these go to <b>Needs you</b> instead of being answered. Add them in <code>config/profile.yaml</code>.</p>
+      <ul>${gaps.map(g => `<li>${esc(g)}</li>`).join("")}</ul></div>` : ""}
+
+    <h2 class="section-h">Contact</h2>
+    <dl class="kv card">
+      <dt>Email</dt><dd>${esc(p.email)}</dd>
+      <dt>Phone</dt><dd>${esc(p.phone)}</dd>
+      <dt>Location</dt><dd>${esc([loc.city, loc.state, loc.zip].filter(Boolean).join(", "))}</dd>
+    </dl>
+
+    <h2 class="section-h">Education</h2>
+    <div class="card stack">
+      ${[ed, ...(p.past_education || [])].map(e => `<div><b>${esc(e.degree)} in ${esc(e.major)}</b><div class="sub">${esc(e.school)} · ${esc(span(e.start, e.graduation))}${e.gpa ? ` · GPA ${esc(e.gpa)}` : ""}</div></div>`).join("")}
+      ${ed.coursework ? `<div class="sub">Coursework: ${esc(ed.coursework)}</div>` : ""}
+    </div>
+
+    ${(p.experience || []).length ? `<h2 class="section-h">Experience</h2>
+    <div class="card stack">${p.experience.map(x => `<div><b>${esc(x.title)}</b><div class="sub">${esc(x.company)} · ${esc(span(x.start, x.end))}</div><p class="body">${esc(x.summary)}</p></div>`).join("")}</div>` : ""}
+
+    ${(p.projects || []).length ? `<h2 class="section-h">Projects</h2>
+    <div class="card stack">${p.projects.map(x => `<div><b>${esc(x.name)}</b><div class="sub">${esc((x.tech || []).join(", "))}${x.date ? ` · ${esc(fmtMonth(x.date))}` : ""}</div><p class="body">${esc(x.summary)}</p></div>`).join("")}</div>` : ""}
+
+    ${(p.skills || []).length ? `<h2 class="section-h">Skills</h2><div class="tags">${p.skills.map(s => `<span class="tag">${esc(s)}</span>`).join("")}</div>` : ""}
+
+    <h2 class="section-h">Accounts the agent made</h2>
+    ${accts.length ? `<div class="card stack">${accts.map(([host, a]) => `<div class="acct">
+        <div><b>${esc(a.company || host)}</b><div class="sub mono">${esc(host)}</div></div>
+        ${a.unverified ? `<span class="pill st-todo">Check email to verify</span>` : `<span class="pill st-offer">Active</span>`}
+      </div>`).join("")}
+      <p class="sub">Each uses ${esc(p.email)} and the password saved as your <code>ATS_PASSWORD</code> secret.</p></div>`
+    : `<div class="card"><p class="sub">None yet. When the agent applies on Workday it creates an account per company and lists it here.</p></div>`}`;
+}
+
+async function openResume(btn) {
+  btn.disabled = true;
+  try {
+    const res = await fetch(`https://api.github.com/repos/${cfg.repo}/contents/${(profile && profile.resume_path) || "config/resume.pdf"}?ref=${branch()}`,
+      { headers: { Authorization: `Bearer ${cfg.token}`, Accept: "application/vnd.github.raw+json" } });
+    if (!res.ok) throw new Error(res.status);
+    const url = URL.createObjectURL(new Blob([await res.arrayBuffer()], { type: "application/pdf" }));
+    const a = document.createElement("a"); a.href = url; a.target = "_blank"; a.rel = "noopener"; a.click();
+  } catch (e) { toast(`Couldn't open the resume (${e.message})`); }
+  finally { btn.disabled = false; }
+}
+
+// ---------- Detail sheet ----------
+const layer = document.getElementById("layer");
+function closeSheet() { layer.innerHTML = ""; }
+
+function openDetail(key) {
+  const r = records().find(x => x.key === key);
+  if (!r) return;
+  const events = r.events.length ? r.events : (r.status === "submitted" ? [{ stage: "applied", at: r.at }] : []);
+  const answers = (r.answers || []).filter(a => a.a && a.a.length);
+  layer.innerHTML = `<div class="scrim" data-close></div>
+  <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="dTitle">
+    <div class="grab"></div>
+    <h2 id="dTitle">${esc(r.company)}</h2>
+    <div class="sub">${esc(r.title)}</div>
+    <div class="stages" role="group" aria-label="Stage">
+      ${STAGES.map(s => `<button class="st-${s.id}" data-stage="${s.id}" aria-pressed="${r.stage === s.id}">${s.label}</button>`).join("")}
+    </div>
+    <div class="field"><label for="notes">Notes</label><textarea id="notes" placeholder="Recruiter name, interview dates, what they asked…">${esc(r.notes)}</textarea></div>
+    ${events.length ? `<div class="field"><label>History</label><ol class="timeline">${events.map(e => `<li>${pill(e.stage)}<span class="mono">${new Date(e.at * 1000).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>${e.summary ? `<div class="sub">✉ ${esc(e.summary)}</div>` : ""}</li>`).join("")}</ol></div>` : ""}
+    <dl class="kv">
+      <dt>Posting</dt><dd><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(atsOf(r.url))} ↗</a></dd>
+      <dt>Found via</dt><dd>${esc(r.source || "")}</dd>
+      ${r.at ? `<dt>Agent saw it</dt><dd>${esc(new Date(r.at * 1000).toLocaleString())}</dd>` : ""}
+      ${r.status && r.status !== "manual_add" ? `<dt>Agent result</dt><dd>${esc(r.status.replace("_", " "))}${r.detail ? ` · ${esc(r.detail)}` : ""}</dd>` : ""}
+    </dl>
+    ${answers.length ? `<details class="answers"><summary>What the agent answered (${answers.length})</summary><ol>${answers.map(a => `<li><div class="q">${esc(a.q)}</div>${esc(a.a.join(", "))}</li>`).join("")}</ol></details>` : ""}
+    <div class="sheet-actions">
+      <button class="btn primary" id="saveNotes">Save notes</button>
+      ${TODO_STATUSES.has(r.status) && !r.stage ? `<button class="btn ghost" data-dismiss="${esc(r.key)}">Not for me</button>` : ""}
+      <button class="btn ghost" data-close>Close</button>
+    </div>
+  </section>`;
+  layer.querySelectorAll("[data-stage]").forEach(b => b.onclick = () => {
+    const stage = b.dataset.stage;
+    setTracking(r.key, { stage }, `Tracker: ${r.company} → ${STAGE_LABEL[stage]}`, r);
+    layer.querySelectorAll("[data-stage]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    toast(`${r.company}: ${STAGE_LABEL[stage]}`);
+  });
+  layer.querySelector("#saveNotes").onclick = () => {
+    setTracking(r.key, { notes: layer.querySelector("#notes").value }, `Tracker: notes on ${r.company}`, r);
+    toast("Notes saved"); closeSheet();
+  };
+  bindCommon(layer);
+}
+
+function openAdd() {
+  layer.innerHTML = `<div class="scrim" data-close></div>
+  <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="aTitle">
+    <div class="grab"></div>
+    <h2 id="aTitle">Log an application</h2>
+    <div class="sub">For jobs you applied to outside the agent.</div>
+    <form id="addForm">
+      <div class="field"><label for="aCo">Company</label><input id="aCo" required></div>
+      <div class="field"><label for="aTi">Role</label><input id="aTi" required></div>
+      <div class="field"><label for="aUrl">Posting link</label><input id="aUrl" type="url" placeholder="https://"></div>
+      <div class="sheet-actions"><button class="btn primary" type="submit">Add as applied</button><button class="btn ghost" type="button" data-close>Cancel</button></div>
+    </form>
+  </section>`;
+  layer.querySelector("#addForm").onsubmit = e => {
+    e.preventDefault();
+    const rec = { company: layer.querySelector("#aCo").value.trim(), title: layer.querySelector("#aTi").value.trim(),
+                  url: layer.querySelector("#aUrl").value.trim(), at: Date.now() / 1000 };
+    setTracking("m-" + Date.now().toString(36), { stage: "applied" }, `Tracker: logged ${rec.company}`, rec);
+    closeSheet(); toast(`Logged ${rec.company}`);
+  };
+  bindCommon(layer);
+  layer.querySelector("#aCo").focus();
+}
+
+function openSettings() {
+  layer.innerHTML = `<div class="scrim" data-close></div>
+  <section class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>${setupView()}
+    <div class="sheet-actions"><button class="btn ghost" id="forget">Disconnect this device</button></div></section>`;
+  bindSetup(layer);
+  layer.querySelector("#forget").onclick = () => { store.del("cfg"); store.del("cache"); cfg = null; jobs = {}; tracking = {}; inbox = {}; profile = null; accounts = {}; ghUser = null; closeSheet(); render(); };
+  bindCommon(layer);
+}
+
+// ---------- Events ----------
+function bindCommon(root) {
+  root.querySelectorAll("[data-close]").forEach(el => el.onclick = closeSheet);
+  root.querySelectorAll("[data-applied]").forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    const r = records().find(x => x.key === b.dataset.applied);
+    setTracking(r.key, { stage: "applied" }, `Tracker: applied to ${r.company}`, r);
+    toast(`Marked ${r.company} as applied`);
+  });
+  root.querySelectorAll("[data-dismiss]").forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    const r = records().find(x => x.key === b.dataset.dismiss);
+    setTracking(r.key, { dismissed: true }, `Tracker: dismissed ${r.company}`, r);
+    closeSheet(); toast(`Hid ${r.company}`);
+  });
+  root.querySelectorAll("[data-stop]").forEach(a => a.addEventListener("click", e => e.stopPropagation()));
+}
+
+function bindMain() {
+  bindCommon(main);
+  main.querySelectorAll("[data-open]").forEach(el => {
+    el.onclick = () => openDetail(el.dataset.open);
+    el.onkeydown = e => { if ((e.key === "Enter" || e.key === " ") && e.target === el) { e.preventDefault(); openDetail(el.dataset.open); } };
+  });
+  main.querySelectorAll("[data-filter]").forEach(b => b.onclick = () => { filter[tab] = b.dataset.filter; shown = PAGE; render(); });
+  const more = main.querySelector("[data-more]"); if (more) more.onclick = () => { shown += PAGE; render(); };
+  const search = main.querySelector("#search");
+  if (search) search.oninput = () => {
+    query = search.value.trim().toLowerCase(); shown = PAGE;
+    const pos = search.selectionStart; render();
+    const s2 = main.querySelector("#search"); s2.focus(); s2.setSelectionRange(pos, pos);
+  };
+  const resume = main.querySelector("#openResume"); if (resume) resume.onclick = () => openResume(resume);
+  const exit = main.querySelector("#exitDemo"); if (exit) exit.onclick = () => { demo = false; jobs = {}; tracking = {}; control = {}; setSync("not connected"); render(); };
+  const on = main.querySelector("#agentOn");
+  if (on) on.onchange = async () => {
+    const paused = !on.checked;
+    control = { ...control, paused };
+    render();
+    if (demo) return;
+    try {
+      const res = await updateJsonFile("state/control.json", d => ({ ...d, paused }), paused ? "Tracker: pause agent" : "Tracker: resume agent");
+      controlSha = res.sha;
+      toast(paused ? "Agent paused. It stops at its next run." : "Agent resumed");
+    } catch (e) { toast(`Not saved: ${e.message}`); load(); }
+  };
+  const run = main.querySelector("#runNow");
+  if (run) run.onclick = async () => {
+    if (demo) return toast("Connect your repo to run the agent");
+    run.disabled = true;
+    try {
+      await gh("actions/workflows/apply.yml/dispatches", { method: "POST", body: JSON.stringify({ ref: branch() }) });
+      toast("Started. New results show up in a few minutes.");
+    } catch (e) {
+      toast(e.status === 403 ? "The token needs Actions: Read and write" : `Couldn't start: ${e.message}`);
+    } finally { run.disabled = false; }
+  };
+}
+
+function bindSetup(root = main) {
+  const form = root.querySelector("#setupForm");
+  form.onsubmit = e => {
+    e.preventDefault();
+    cfg = { repo: root.querySelector("#repo").value.trim().replace(/^https?:\/\/github\.com\//, "").replace(/\/$/, ""),
+            token: root.querySelector("#token").value.trim(), branch: root.querySelector("#branch").value.trim() || "main" };
+    store.set("cfg", cfg); demo = false; closeSheet(); load();
+  };
+  const tryDemo = root.querySelector("#tryDemo");
+  if (tryDemo) tryDemo.onclick = () => { closeSheet(); startDemo(); };
+}
+
+document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => {
+  tab = b.dataset.tab; shown = PAGE; query = ""; store.set("tab", tab); window.scrollTo(0, 0); render();
+});
+document.getElementById("refresh").onclick = () => load();
+document.getElementById("settingsBtn").onclick = openSettings;
+document.getElementById("fab").onclick = openAdd;
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden && cfg && !demo) load(); });
+
+// ---------- Example data (only when the viewer taps "See it with example data") ----------
+function startDemo() {
+  demo = true;
+  const now = Date.now() / 1000, h = 3600, d = 86400;
+  const mk = (company, title, status, at, url, detail = "", answers) => ({ company, title, status, at, url, detail, source: "SimplifyJobs/Summer2026-Internships", answers });
+  jobs = {
+    a1: mk("Ramp", "Software Engineer Intern", "submitted", now - 2 * h, "https://jobs.ashbyhq.com/ramp/x", "confirmed",
+      [{ q: "Will you now or in the future require sponsorship?", a: ["No"] }, { q: "Why Ramp?", a: ["Example answer written from your profile."] }]),
+    a2: mk("Plaid", "Backend Engineer, New Grad", "submitted", now - 3 * d, "https://jobs.lever.co/plaid/x", "confirmed"),
+    a3: mk("Robinhood", "Software Engineer Intern", "submitted", now - 6 * d, "https://job-boards.greenhouse.io/robinhood/jobs/1", "confirmed"),
+    a4: mk("Duolingo", "Software Engineer Intern", "submitted", now - 9 * d, "https://job-boards.greenhouse.io/duolingo/jobs/2", "confirmed"),
+    a5: mk("Notion", "Software Engineer, Early Career", "submitted", now - 12 * d, "https://jobs.ashbyhq.com/notion/x", "confirmed"),
+    t1: mk("Garmin", "Software Engineer Intern", "manual", now - 40 * 60, "https://careers.garmin.com/jobs/20055?icims=1", "icims is not automated yet"),
+    t2: mk("Honeywell", "Software Engineering Co-op", "manual", now - 5 * h, "https://ibqbjb.fa.ocs.oraclecloud.com/x", "oracle is not automated yet"),
+    t3: mk("Clay", "Software Engineer Intern", "needs_review", now - 7 * h, "https://jobs.ashbyhq.com/claylabs/x", "couldn't answer: When is your expected graduation?"),
+    t4: mk("Kyndryl", "Data Operations Associate", "manual", now - 1 * d, "https://kyndryl.wd5.myworkdayjobs.com/x", "workday is not automated yet"),
+    t5: mk("Gas South", "Software Developer Intern", "failed", now - 2 * d, "https://job-boards.greenhouse.io/gassouth/jobs/1", "no confirmation after submit."),
+  };
+  tracking = {
+    a2: { stage: "oa", events: [{ stage: "applied", at: now - 3 * d }, { stage: "oa", at: now - 1 * d }], notes: "HackerRank due Friday" },
+    a3: { stage: "interview", events: [{ stage: "applied", at: now - 6 * d }, { stage: "interview", at: now - 2 * d }], notes: "Phone screen Tue 2pm" },
+    a5: { stage: "rejected", events: [{ stage: "applied", at: now - 12 * d }, { stage: "rejected", at: now - 4 * d }] },
+    m1: { company: "Microsoft", title: "Software Engineer Intern", url: "https://careers.microsoft.com/", added: now - 8 * d, stage: "applied", events: [{ stage: "applied", at: now - 8 * d }] },
+  };
+  control = {};
+  setSync(); render();
+}
+
+// ---------- Boot ----------
+const cached = store.get("cache");
+if (cfg && cached) { jobs = cached.jobs || {}; tracking = cached.tracking || {}; control = cached.control || {}; inbox = cached.inbox || {};
+                     accounts = cached.accounts || {}; profile = cached.profile || null; }
+render();
+load();
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>

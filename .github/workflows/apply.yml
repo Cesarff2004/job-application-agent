@@ -1,0 +1,86 @@
+name: Job agent
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"   # GitHub may delay scheduled runs by 5-15 min under load
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Override settings.yaml mode for this run"
+        type: choice
+        options: [settings, dry_run, auto]
+        default: settings
+
+permissions:
+  contents: write
+
+concurrency:
+  group: job-agent   # never run two cycles at once (prevents double applications)
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    # Off until you set the repository variable JOB_AGENT_ENABLED=true (Settings → Secrets and variables → Actions → Variables).
+    if: vars.JOB_AGENT_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+      IMAP_USER: ${{ secrets.IMAP_USER }}
+      IMAP_PASSWORD: ${{ secrets.IMAP_PASSWORD }}
+      ATS_PASSWORD: ${{ secrets.ATS_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      # Cheap check first, so quiet runs don't spend minutes installing a browser.
+      - id: discover
+        run: python -m job_agent discover
+
+      - name: Install browser
+        if: steps.discover.outputs.auto != '0'
+        run: python -m playwright install --with-deps chromium
+
+      - name: Apply
+        if: steps.discover.outputs.auto != '0' || steps.discover.outputs.manual != '0'
+        env:
+          AUTO_LIMIT: ${{ steps.discover.outputs.auto }}
+        run: |
+          MODE="${{ inputs.mode }}"
+          if [ -n "$MODE" ] && [ "$MODE" != "settings" ]; then
+            python -m job_agent run --mode "$MODE"
+          else
+            python -m job_agent run
+          fi
+
+      # Reads employer replies and moves applications to Rejected / Assessment / Interview / Offer.
+      - name: Check inbox
+        if: env.IMAP_PASSWORD != ''
+        continue-on-error: true
+        run: python -m job_agent inbox
+
+      - name: Upload screenshots
+        if: always() && hashFiles('screenshots/*.png') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ github.run_id }}
+          path: screenshots/
+          retention-days: 14
+
+      - name: Save state
+        if: always()
+        run: |
+          git config user.name "job-agent"
+          git config user.email "job-agent@users.noreply.github.com"
+          git add state/
+          git diff --cached --quiet || git commit -m "Update job state [skip ci]"
+          # The tracker app commits state/tracking.json meanwhile; different files, so this rebases cleanly.
+          git pull --rebase
+          git push

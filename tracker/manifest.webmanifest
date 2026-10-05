@@ -1,0 +1,15 @@
+{
+  "name": "Callback",
+  "short_name": "Callback",
+  "description": "Track the applications your job agent sends.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F2F3EF",
+  "theme_color": "#2B47C9",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

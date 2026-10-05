@@ -1,0 +1,35 @@
+name: Publish tracker
+
+# Serves tracker/ on GitHub Pages. The page holds no data: it reads your repo with
+# the token you enter on your phone, so the site itself reveals nothing.
+on:
+  push:
+    branches: [main]
+    paths: ["tracker/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    # Off until you set the repository variable JOB_AGENT_ENABLED=true (Settings → Secrets and variables → Actions → Variables).
+    if: vars.JOB_AGENT_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: tracker
+      - id: deploy
+        uses: actions/deploy-pages@v4
